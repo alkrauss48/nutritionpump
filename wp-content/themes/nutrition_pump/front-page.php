@@ -9,39 +9,26 @@
     ?>
     </header>
     <section class="tiles">
-      <article class="style10">
+      <?php
+        $fields = CFS()->get( 'link_blocks' );
+        foreach ( $fields as $field ) {
+          $link = $field['link'];
+          foreach ( $field['color'] as $key => $label ) {
+            $color = $key;
+          }
+      ?>
+      <article class="<?php echo $color; ?>">
         <span class="image">
           <img src="images/pic01.jpg" alt="" />
         </span>
-        <a href="/about">
-          <h2>About</h2>
+        <a href="<?php echo $link['url']; ?>">
+          <h2><?php echo $link['text']; ?></h2>
           <div class="content">
-            <p>Sed nisl arcu euismod sit amet nisi lorem etiam dolor veroeros et feugiat.</p>
+            <p><?php echo $field['block_text']; ?></p>
           </div>
         </a>
       </article>
-      <article class="style8">
-        <span class="image">
-          <img src="images/pic02.jpg" alt="" />
-        </span>
-        <a href="/services">
-          <h2>Services</h2>
-          <div class="content">
-            <p>Sed nisl arcu euismod sit amet nisi lorem etiam dolor veroeros et feugiat.</p>
-          </div>
-        </a>
-      </article>
-      <article class="style7">
-        <span class="image">
-          <img src="images/pic03.jpg" alt="" />
-        </span>
-        <a href="/blog">
-          <h2>Blog</h2>
-          <div class="content">
-            <p>Sed nisl arcu euismod sit amet nisi lorem etiam dolor veroeros et feugiat.</p>
-          </div>
-        </a>
-      </article>
+      <?php } ?>
     </section>
   </div>
 </div>
