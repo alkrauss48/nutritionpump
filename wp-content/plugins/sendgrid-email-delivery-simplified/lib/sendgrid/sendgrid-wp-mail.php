@@ -330,6 +330,12 @@ function wp_mail( $to, $subject, $message, $headers = '', $attachments = array()
   $content_type = apply_filters( 'wp_mail_content_type', $content_type );
 
   $text_content = $message;
+  // check if setText() is set in the header
+  $text_content_header = $mail->getText();
+  if ( isset( $text_content_header ) and false != $text_content_header ) {
+     $text_content = $text_content_header;
+  }
+  // check if filter sendgrid_mail_text is set
   if ( array_key_exists( 'sendgrid_mail_text' , $GLOBALS['wp_filter'] ) ) {
     $text_content = apply_filters( 'sendgrid_mail_text', $text_content );
   }
@@ -376,7 +382,7 @@ function wp_mail( $to, $subject, $message, $headers = '', $attachments = array()
     $mail->setBccs( $bcc );
   }
 
-  if ( ! isset( $replyto ) ) {
+  if ( ! isset( $replyto ) or false == $replyto ) {
     $replyto = trim( Sendgrid_Tools::get_reply_to() );
   }
 
@@ -390,6 +396,12 @@ function wp_mail( $to, $subject, $message, $headers = '', $attachments = array()
   // add attachemnts
   if ( count( $attached_files ) ) {
     $mail->setAttachments( $attached_files );
+  }
+
+  // set unsubscribe group
+  $unsubscribe_group_id = Sendgrid_Tools::get_unsubscribe_group();
+  if ( $unsubscribe_group_id and $unsubscribe_group_id != 0 ) {
+    $mail->setAsmGroupId( $unsubscribe_group_id );
   }
 
   $sendgrid = Sendgrid_WP::get_instance();

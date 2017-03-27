@@ -3,8 +3,8 @@ Contributors: team-rs
 Donate link: http://sendgrid.com/
 Tags: email, email reliability, email templates, sendgrid, smtp, transactional email, wp_mail,email infrastructure, email marketing, marketing email, deliverability, email deliverability, email delivery, email server, mail server, email integration, cloud email
 Requires at least: 4.2
-Tested up to: 4.5
-Stable tag: 1.9.3
+Tested up to: 4.7
+Stable tag: 1.10.7
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,6 +28,16 @@ SendGrid’s WordPress Subscription Widget makes it easy for people visiting you
 
 For more details, consult the official documentation for the Subscription Widget here : https://sendgrid.com/docs/Integrate/Tutorials/WordPress/subscription_widget.html
 
+= Multisite (Beta) =
+
+If you are using the SendGrid plugin in a Multisite environment, you need to Network Activate it. You can then access the settings page on the network dashboard and the configure settings will be used for all sites.
+
+You can enable access for SendGrid settings to each subsite in the Multisite Settings tab. If the checkbox is unchecked then that site will not see the SendGrid settings page and it will use the settings set on the network.
+Warning! When you activate SendGrid management for a subsite, that site will not be able to send emails until the admin updates the SendGrid settings on that subsite.
+
+If you already had the plugin installed in a Multisite environment and you update to versions after 1.9.0 you may need to reconfigure your plugin.
+
+
 == Installation ==
 
 Requirements:
@@ -46,10 +56,20 @@ To upload the SendGrid Plugin .ZIP file:
 To auto install the SendGrid Plugin from the WordPress admin:
 
 1. Navigate to "Plugins" -> "Add New"
-2. Search for "SendGrid Plugin" and click "Install Now" for the "SendGrid Plugin" listing
+2. Search for "SendGrid Plugin" and click "Install Now" for the "SendGrid Plugin" listing.
 3. Activate the plugin from the "Plugins" menu in WordPress, or from the plugin installation screen.
 4. Create a SendGrid account at <a href="http://sendgrid.com/partner/wordpress" target="_blank">http://sendgrid.com/partner/wordpress</a>
-5. Navigate to "Settings" -> "SendGrid Settings" and enter your SendGrid credentials
+5. Navigate to "Settings" -> "SendGrid Settings" and enter your SendGrid credentials.
+
+For Multisite:
+
+1. Navigate to "My Sites" -> "Network Admin" -> "Plugins"
+2. Click on "Add New"
+3. Search for "SendGrid Plugin" and click "Install Now" for the "SendGrid Plugin" listing.
+4. Network Activate the plugin from the "Plugins" menu in WordPress, or from the plugin installation screen.
+5. Create a SendGrid account at <a href="http://sendgrid.com/partner/wordpress" target="_blank">http://sendgrid.com/partner/wordpress</a>
+6. Navigate to "My Sites" -> "Network Admin" -> "Dashboard"
+7. Click on the "SendGrid Settings" item in the menu on the left and enter your SendGrid credentials.
 
 = Global Settings =
 
@@ -69,6 +89,8 @@ SendGrid settings can optionally be defined as global variables (wp-config.php):
     * Categories: define('SENDGRID_CATEGORIES', 'category_1,category_2');
     * Template: define('SENDGRID_TEMPLATE', 'templateID');
     * Content-type: define('SENDGRID_CONTENT_TYPE', 'html');
+    * Unsubscribe Group: define('SENDGRID_UNSUBSCRIBE_GROUP', 'unsubscribeGroupId');
+
 
 3. Set widget related settings:
     * Marketing Campaigns API key: define('SENDGRID_MC_API_KEY', 'sendgrid_mc_api_key');
@@ -132,7 +154,7 @@ Yes. You can find it here : https://sendgrid.com/docs/Integrate/Tutorials/WordPr
 
 Create a SendGrid account at <a href="http://sendgrid.com/partner/wordpress" target="_blank">https://sendgrid.com/partner/wordpress</a> and generate a new API key on <https://app.sendgrid.com/settings/api_keys>.
 
-= How can I define a plugin setting to be used for all sites =
+= How can I define a plugin setting to be used for all sites ? =
 
 Add it into your wp-config.php file. Example: `define('SENDGRID_API_KEY', 'your_api_key');`.
 
@@ -211,6 +233,12 @@ You'll hear from us soon!`
 
 You need to enable the use of the First Name and Last Name fields from the settings page in order to use the shortcodes for them.
 
+= Does this plugin support Multisite? =
+
+Yes. This plugin has basic Multisite support. You need to Network Activate this plugin. 
+
+The settings for all sites in the network can be configured only by the Network Admin in the Network Admin Dashboard.
+
 == Screenshots ==
 
 1. Go to Admin Panel, section Plugins and activate the SendGrid plugin. If you want to send emails through SMTP you need to install also the 'Swift Mailer' plugin. 
@@ -228,6 +256,31 @@ You need to enable the use of the First Name and Last Name fields from the setti
 
 == Changelog ==
 
+= 1.10.7 =
+* Add port 2525 for SMTP
+* Use cache for stats widget on dashboard
+= 1.10.6 =
+* Fixed logos and fonts on Stats page
+= 1.10.5 =
+* Added settings page on multisite to give access to self manage SendGrid plugin to each subsite
+= 1.10.4 =
+* Set transient token for Marketing Campaign in database
+= 1.10.3 =
+* Add option to configure text version using setText() function from the header
+* Tested up to 4.7
+= 1.10.2 =
+* Add options to configure subscription widget form (labels, padding)
+= 1.10.1 =
+* Fixed a javascript error and a PHP warning
+= 1.10.0 =
+* Added basic Multisite functionality
+* WARNING: Multisite users need to network activate this plugin and reconfigure it.
+* Fixed an issue where other users would see the SendGrid statistics widget on the dashboard.
+= 1.9.5 =
+* Fixed an issue with the Reply-To field
+= 1.9.4 =
+* Added Unsubscribe Group option
+* Improved email validation
 = 1.9.3 =
 * Added BuddyPress integration
 * MC API Key is now saved on focusout
@@ -347,6 +400,31 @@ You need to enable the use of the First Name and Last Name fields from the setti
 
 == Upgrade notice ==
 
+= 1.10.7 =
+* Add port 2525 for SMTP
+* Use cache for stats widget on dashboard
+= 1.10.6 =
+* Fixed logos and fonts on Stats page
+= 1.10.5 =
+* Added settings page on multisite to give access to self manage SendGrid plugin to each subsite
+= 1.10.4 =
+* Set transient token for Marketing Campaign in database
+= 1.10.3 =
+* Add option to configure text version using setText() function from the header
+* Tested up to 4.7
+= 1.10.2 =
+* Add options to configure subscription widget form (labels, padding)
+= 1.10.1 =
+* Fixed a javascript error and a PHP warning
+= 1.10.0 =
+* Added basic Multisite functionality
+* WARNING: Multisite users need to network activate this plugin and reconfigure it.
+* Fixed an issue where other users would see the SendGrid statistics widget on the dashboard.
+= 1.9.5 =
+* Fixed an issue with the Reply-To field
+= 1.9.4 =
+* Added Unsubscribe Group option
+* Improved email validation
 = 1.9.3 =
 * Added BuddyPress integration
 * MC API Key is now saved on focusout

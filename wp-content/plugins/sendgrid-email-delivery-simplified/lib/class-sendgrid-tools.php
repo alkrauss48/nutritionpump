@@ -5,12 +5,52 @@ class Sendgrid_Tools
   const CACHE_GROUP = "sendgrid";
   const CHECK_CREDENTIALS_CACHE_KEY = "sendgrid_credentials_check";
   const CHECK_API_KEY_CACHE_KEY = "sendgrid_api_key_check";
+  const CHECK_API_KEY_STATS_CACHE_KEY = "sendgrid_api_key_stats_check";
   const VALID_CREDENTIALS_STATUS = "valid";
 
   // used static variable because php 5.3 doesn't support array as constant
-  public static $allowed_ports = array( Sendgrid_SMTP::TLS, Sendgrid_SMTP::TLS_ALTERNATIVE, Sendgrid_SMTP::SSL );
+  public static $allowed_ports = array( Sendgrid_SMTP::TLS, Sendgrid_SMTP::TLS_ALTERNATIVE, Sendgrid_SMTP::SSL, Sendgrid_SMTP::TLS_ALTERNATIVE_2 );
   public static $allowed_auth_methods = array( 'apikey', 'credentials' );
   public static $allowed_content_type = array( 'plaintext', 'html' );
+
+  /**
+   * Returns a sendgrid plugin option
+   *
+   * @return  string
+   */
+  public static function get_sendgrid_option( $option, $default = false ) {
+    if ( ! is_multisite() || ( is_multisite() and ! is_main_site() and get_option( 'sendgrid_can_manage_subsite' ) ) ) {
+      return get_option( "sendgrid_$option", $default );
+    } else {
+      return get_site_option( "sendgrid_$option", $default );
+    }
+  }
+
+  /**
+   * Updates a sendgrid plugin option
+   *
+   * @return  string
+   */
+  public static function update_sendgrid_option( $option, $value ) {
+    if ( ! is_multisite() || ( is_multisite() and ! is_main_site() and get_option( 'sendgrid_can_manage_subsite' ) ) ) {
+      return update_option( "sendgrid_$option", $value );
+    } else {
+      return update_site_option( "sendgrid_$option", $value );
+    }
+  }
+
+  /**
+   * Deletes a sendgrid plugin option
+   *
+   * @return  string
+   */
+  public static function delete_sendgrid_option( $option ) {
+    if ( ! is_multisite() || ( is_multisite() and ! is_main_site() and get_option( 'sendgrid_can_manage_subsite' ) ) ) {
+      return delete_option( "sendgrid_$option" );
+    } else {
+      return delete_site_option( "sendgrid_$option" );
+    }
+  }
 
   /**
    * Check username/password
@@ -26,16 +66,11 @@ class Sendgrid_Tools
       return false;
     }
 
-    if ( $clear_cache and is_multisite() ) {
-      set_site_transient( self::CHECK_CREDENTIALS_CACHE_KEY, null );
-    } elseif ( $clear_cache ) {
-      set_transient( self::CHECK_CREDENTIALS_CACHE_KEY, null );
+    if ( $clear_cache ) {
+      self::set_transient_sendgrid( self::CHECK_CREDENTIALS_CACHE_KEY, null );
     }
 
-    $valid_username_password = get_transient( self::CHECK_CREDENTIALS_CACHE_KEY );
-    if ( is_multisite() ) {
-      $valid_username_password = get_site_transient( self::CHECK_CREDENTIALS_CACHE_KEY );
-    }
+    $valid_username_password = self::get_transient_sendgrid( self::CHECK_CREDENTIALS_CACHE_KEY );
 
     if ( self::VALID_CREDENTIALS_STATUS == $valid_username_password ) {
       return true;
@@ -56,11 +91,7 @@ class Sendgrid_Tools
       return false;
     }
 
-    if ( is_multisite() ) {
-      set_site_transient( self::CHECK_CREDENTIALS_CACHE_KEY, self::VALID_CREDENTIALS_STATUS, 2 * 60 * 60 );
-    } else {
-      set_transient( self::CHECK_CREDENTIALS_CACHE_KEY, self::VALID_CREDENTIALS_STATUS, 2 * 60 * 60 );
-    }
+    self::set_transient_sendgrid( self::CHECK_CREDENTIALS_CACHE_KEY, self::VALID_CREDENTIALS_STATUS, 2 * 60 * 60 );
 
     return true;
   }
@@ -98,14 +129,14 @@ class Sendgrid_Tools
       return false;
     }
 
-    if( ! isset( $response['scopes'] ) ) {
+    if ( ! isset( $response['scopes'] ) ) {
       return false;
     }
 
-    foreach( $scopes as $scope ) {
-        if( !in_array( $scope, $response['scopes'] ) ) {
-          return false;
-        }
+    foreach ( $scopes as $scope ) {
+      if ( ! in_array( $scope, $response['scopes'] ) ) {
+        return false;
+      }
     }
 
     return true;
@@ -124,30 +155,28 @@ class Sendgrid_Tools
       return false;
     }
 
-    if ( $clear_cache and is_multisite() ) {
-      set_site_transient( self::CHECK_API_KEY_CACHE_KEY, null );
-    } elseif ( $clear_cache ) {
-      set_transient( self::CHECK_API_KEY_CACHE_KEY, null );
+    if ( $clear_cache ) {
+      self::set_transient_sendgrid( self::CHECK_API_KEY_CACHE_KEY, null );
     }
 
-    $valid_apikey = get_transient( self::CHECK_API_KEY_CACHE_KEY );
-    if ( is_multisite() ) {
-      $valid_apikey = get_site_transient( self::CHECK_API_KEY_CACHE_KEY );
-    }
+    $valid_apikey = self::get_transient_sendgrid( self::CHECK_API_KEY_CACHE_KEY );
 
     if ( self::VALID_CREDENTIALS_STATUS == $valid_apikey ) {
       return true;
     }
 
-    if( ! Sendgrid_Tools::check_api_key_scopes( $apikey, array( "mail.send" ) ) ) {
+    // check unsubscribe group permission
+    if ( Sendgrid_Tools::check_api_key_scopes( $apikey, array( "asm.groups.read" ) ) ) {
+      Sendgrid_Tools::set_asm_permission( 'true' );
+    } else {
+      Sendgrid_Tools::set_asm_permission( 'false' ); 
+    }
+
+    if ( ! Sendgrid_Tools::check_api_key_scopes( $apikey, array( "mail.send" ) ) ) {
       return false;
     }
 
-    if ( is_multisite() ) {
-      set_site_transient( self::CHECK_API_KEY_CACHE_KEY, self::VALID_CREDENTIALS_STATUS, 2 * 60 * 60 );
-    } else {
-      set_transient( self::CHECK_API_KEY_CACHE_KEY, self::VALID_CREDENTIALS_STATUS, 2 * 60 * 60 );
-    }
+    self::set_transient_sendgrid( self::CHECK_API_KEY_CACHE_KEY, self::VALID_CREDENTIALS_STATUS, 2 * 60 * 60 );
 
     return true;
   }
@@ -243,13 +272,13 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_USERNAME' ) ) {
       return SENDGRID_USERNAME;
     } else {
-      $username = get_option( 'sendgrid_user' );
+      $username = Sendgrid_Tools::get_sendgrid_option( 'user' );
       if( $username ) {
-        delete_option( 'sendgrid_user' );
-        update_option( 'sendgrid_username', $username );
+        Sendgrid_Tools::delete_sendgrid_option( 'user' );
+        Sendgrid_Tools::update_sendgrid_option( 'username', $username );
       }
 
-      return get_option( 'sendgrid_username' );
+      return Sendgrid_Tools::get_sendgrid_option( 'username' );
     }
   }
 
@@ -263,10 +292,10 @@ class Sendgrid_Tools
   public static function set_username( $username )
   {
     if( ! isset( $username ) ) {
-      return update_option( 'sendgrid_username', '' );
+      return Sendgrid_Tools::update_sendgrid_option( 'username', '' );
     }
 
-    return update_option( 'sendgrid_username', $username );
+    return Sendgrid_Tools::update_sendgrid_option( 'username', $username );
   }
 
   /**
@@ -279,15 +308,14 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_PASSWORD' ) ) {
       return SENDGRID_PASSWORD;
     } else {
-      $password     = get_option( 'sendgrid_pwd' );
-      $new_password = get_option( 'sendgrid_password' );
-      if( $new_password and ! $password ) {
-        update_option( 'sendgrid_pwd', self::decrypt( $new_password, AUTH_KEY ) );
-        delete_option( 'sendgrid_password' );
+      $password     = Sendgrid_Tools::get_sendgrid_option( 'pwd' );
+      $new_password = Sendgrid_Tools::get_sendgrid_option( 'password' );
+      if ( $new_password and ! $password ) {
+        Sendgrid_Tools::update_sendgrid_option( 'pwd', self::decrypt( $new_password, AUTH_KEY ) );
+        Sendgrid_Tools::delete_sendgrid_option( 'password' );
       }
 
-      $password = get_option( 'sendgrid_pwd' );
-      return $password;
+      return Sendgrid_Tools::get_sendgrid_option( 'pwd' );
     }
   }
 
@@ -300,7 +328,7 @@ class Sendgrid_Tools
    */
   public static function set_password( $password )
   {
-    return update_option( 'sendgrid_pwd', $password );
+    return Sendgrid_Tools::update_sendgrid_option( 'pwd', $password );
   }
 
   /**
@@ -313,14 +341,14 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_API_KEY' ) ) {
       return SENDGRID_API_KEY;
     } else {
-      $apikey     = get_option( 'sendgrid_api_key' );
-      $new_apikey = get_option( 'sendgrid_apikey' );
-      if( $new_apikey and ! $apikey ) {
-        update_option( 'sendgrid_api_key', self::decrypt( $new_apikey, AUTH_KEY ) );
-        delete_option( 'sendgrid_apikey' );
+      $apikey     = Sendgrid_Tools::get_sendgrid_option( 'api_key' );
+      $new_apikey = Sendgrid_Tools::get_sendgrid_option( 'apikey' );
+      if ( $new_apikey and ! $apikey ) {
+        Sendgrid_Tools::update_sendgrid_option( 'api_key', self::decrypt( $new_apikey, AUTH_KEY ) );
+        Sendgrid_Tools::delete_sendgrid_option( 'apikey' );
       }
 
-      $apikey = get_option( 'sendgrid_api_key' );
+      $apikey = Sendgrid_Tools::get_sendgrid_option( 'api_key' );
       return $apikey;
     }
   }
@@ -335,7 +363,7 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_MC_API_KEY' ) ) {
       return SENDGRID_MC_API_KEY;
     } else {
-      return get_option( 'sendgrid_mc_api_key' );
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_api_key' );
     }
   }
 
@@ -349,7 +377,7 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_MC_LIST_ID' ) ) {
       return SENDGRID_MC_LIST_ID;
     } else {
-      return get_option( 'sendgrid_mc_list_id' );
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_list_id' );
     }
   }
 
@@ -363,7 +391,7 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_MC_OPT_USE_TRANSACTIONAL' ) ) {
       return SENDGRID_MC_OPT_USE_TRANSACTIONAL;
     } else {
-      return get_option( 'sendgrid_mc_opt_use_transactional' );
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_opt_use_transactional' );
     }
   }
 
@@ -377,7 +405,7 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_MC_OPT_REQ_FNAME_LNAME' ) ) {
       return SENDGRID_MC_OPT_REQ_FNAME_LNAME;
     } else {
-      return get_option( 'sendgrid_mc_opt_req_fname_lname' );
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_opt_req_fname_lname' );
     }
   }
 
@@ -391,7 +419,7 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_MC_OPT_INCL_FNAME_LNAME' ) ) {
       return SENDGRID_MC_OPT_INCL_FNAME_LNAME;
     } else {
-      return get_option( 'sendgrid_mc_opt_incl_fname_lname' );
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_opt_incl_fname_lname' );
     }
   }
 
@@ -405,7 +433,7 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_MC_SIGNUP_EMAIL_SUBJECT' ) ) {
       return SENDGRID_MC_SIGNUP_EMAIL_SUBJECT;
     } else {
-      return get_option( 'sendgrid_mc_signup_email_subject' );
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_signup_email_subject' );
     }
   }
 
@@ -419,7 +447,7 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_MC_SIGNUP_EMAIL_CONTENT' ) ) {
       return SENDGRID_MC_SIGNUP_EMAIL_CONTENT;
     } else {
-      return get_option( 'sendgrid_mc_signup_email_content' );
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_signup_email_content' );
     }
   }
 
@@ -433,7 +461,7 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_MC_SIGNUP_EMAIL_CONTENT_TEXT' ) ) {
       return SENDGRID_MC_SIGNUP_EMAIL_CONTENT_TEXT;
     } else {
-      return get_option( 'sendgrid_mc_signup_email_content_text' );
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_signup_email_content_text' );
     }
   }
 
@@ -447,7 +475,7 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_MC_SIGNUP_CONFIRMATION_PAGE' ) ) {
       return SENDGRID_MC_SIGNUP_CONFIRMATION_PAGE;
     } else {
-      return get_option( 'sendgrid_mc_signup_confirmation_page' );
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_signup_confirmation_page' );
     }
   }
 
@@ -464,7 +492,7 @@ class Sendgrid_Tools
     }
 
     $confirmation_pages = get_pages( array( 'parent' => 0 ) );
-    foreach ($confirmation_pages as $key => $page) {
+    foreach ( $confirmation_pages as $key => $page ) {
       if ( $page->ID == $page_id ) {
         return $page->guid;
       }
@@ -480,7 +508,7 @@ class Sendgrid_Tools
    */
   public static function get_mc_auth_valid()
   {
-    return get_option( 'sendgrid_mc_auth_valid' );
+    return Sendgrid_Tools::get_sendgrid_option( 'mc_auth_valid' );
   }
 
   /**
@@ -490,7 +518,7 @@ class Sendgrid_Tools
    */
   public static function get_mc_widget_notice_dismissed()
   {
-    return get_option( 'sendgrid_mc_widget_notice_dismissed' );
+    return Sendgrid_Tools::get_sendgrid_option( 'mc_widget_notice_dismissed' );
   }
 
   /**
@@ -502,7 +530,7 @@ class Sendgrid_Tools
    */
   public static function set_api_key( $apikey )
   {
-    return update_option( 'sendgrid_api_key', $apikey );
+    return Sendgrid_Tools::update_sendgrid_option( 'api_key', $apikey );
   }
 
   /**
@@ -514,7 +542,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_api_key( $apikey )
   {
-    return update_option( 'sendgrid_mc_api_key', $apikey );
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_api_key', $apikey );
   }
 
   /**
@@ -526,7 +554,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_list_id( $list_id )
   {
-    return update_option( 'sendgrid_mc_list_id', $list_id );
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_list_id', $list_id );
   }
 
   /**
@@ -538,7 +566,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_opt_use_transactional( $use_transactional )
   {
-    return update_option( 'sendgrid_mc_opt_use_transactional', $use_transactional );
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_opt_use_transactional', $use_transactional );
   }
 
   /**
@@ -550,7 +578,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_opt_req_fname_lname( $req_fname_lname )
   {
-    return update_option( 'sendgrid_mc_opt_req_fname_lname', $req_fname_lname );
+     return Sendgrid_Tools::update_sendgrid_option( 'mc_opt_req_fname_lname', $req_fname_lname );
   }
 
   /**
@@ -562,7 +590,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_opt_incl_fname_lname( $incl_fname_lname )
   {
-    return update_option( 'sendgrid_mc_opt_incl_fname_lname', $incl_fname_lname );
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_opt_incl_fname_lname', $incl_fname_lname );
   }
 
   /**
@@ -574,7 +602,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_signup_email_subject( $email_subject )
   {
-    return update_option( 'sendgrid_mc_signup_email_subject', $email_subject );
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_signup_email_subject', $email_subject );
   }
 
   /**
@@ -586,7 +614,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_signup_email_content( $email_content )
   {
-    return update_option( 'sendgrid_mc_signup_email_content', $email_content );
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_signup_email_content', $email_content );
   }
 
   /**
@@ -598,7 +626,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_signup_email_content_text( $email_content )
   {
-    return update_option( 'sendgrid_mc_signup_email_content_text', $email_content );
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_signup_email_content_text', $email_content );
   }
 
   /**
@@ -610,7 +638,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_signup_confirmation_page( $confirmation_page )
   {
-    return update_option( 'sendgrid_mc_signup_confirmation_page', $confirmation_page );
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_signup_confirmation_page', $confirmation_page );
   }
 
   /**
@@ -622,7 +650,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_auth_valid( $auth_valid )
   {
-    return update_option( 'sendgrid_mc_auth_valid', $auth_valid );
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_auth_valid', $auth_valid );
   }
 
   /**
@@ -634,7 +662,7 @@ class Sendgrid_Tools
    */
   public static function set_mc_widget_notice_dismissed( $notice_dismissed )
   {
-    return update_option( 'sendgrid_mc_widget_notice_dismissed', $notice_dismissed );
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_widget_notice_dismissed', $notice_dismissed );
   }
 
   /**
@@ -646,11 +674,23 @@ class Sendgrid_Tools
   {
     if ( defined( 'SENDGRID_SEND_METHOD' ) ) {
       return SENDGRID_SEND_METHOD;
-    } elseif ( get_option( 'sendgrid_api' ) ) {
-      return get_option( 'sendgrid_api' );
+    } elseif ( Sendgrid_Tools::get_sendgrid_option( 'api', false ) ) {
+      return Sendgrid_Tools::get_sendgrid_option( 'api' );
     } else {
       return 'api';
     }
+  }
+
+  /**
+   * Sets the send method in the database
+   *
+   * @param   type  string  $method
+   *
+   * @return  bool
+   */
+  public static function set_send_method( $method )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'api', $method );
   }
 
   /**
@@ -662,11 +702,11 @@ class Sendgrid_Tools
   {
     if ( defined( 'SENDGRID_AUTH_METHOD' ) ) {
       return SENDGRID_AUTH_METHOD;
-    } elseif ( get_option( 'sendgrid_auth_method' ) ) {
-      $auth_method = get_option( 'sendgrid_auth_method' );
+    } elseif ( Sendgrid_Tools::get_sendgrid_option( 'auth_method', false ) ) {
+      $auth_method = Sendgrid_Tools::get_sendgrid_option( 'auth_method' );
       if ( 'username' == $auth_method ) {
         $auth_method = 'credentials';
-        update_option( 'sendgrid_auth_method', $auth_method );
+        Sendgrid_Tools::update_sendgrid_option( 'auth_method', $auth_method );
       }
 
       return $auth_method;
@@ -680,6 +720,18 @@ class Sendgrid_Tools
   }
 
   /**
+   * Sets the send method in the database
+   *
+   * @param   type  string  $method
+   *
+   * @return  bool
+   */
+  public static function set_auth_method( $method )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'auth_method', $method );
+  }
+
+  /**
    * Return port from the database or global variable
    *
    * @return  mixed   port, false if the value is not found
@@ -689,8 +741,20 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_PORT' ) ) {
       return SENDGRID_PORT;
     } else {
-      return get_option( 'sendgrid_port', Sendgrid_SMTP::TLS );
+      return Sendgrid_Tools::get_sendgrid_option( 'port', Sendgrid_SMTP::TLS );
     }
+  }
+
+  /**
+   * Sets the port in the database
+   *
+   * @param   type  string  $port
+   *
+   * @return  bool
+   */
+  public static function set_port( $port )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'port', $port );
   }
 
   /**
@@ -703,8 +767,20 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_FROM_NAME' ) ) {
       return SENDGRID_FROM_NAME;
     } else {
-      return get_option( 'sendgrid_from_name' );
+      return Sendgrid_Tools::get_sendgrid_option( 'from_name' );
     }
+  }
+
+  /**
+   * Sets from name in the database
+   *
+   * @param   type  string  $name
+   *
+   * @return  bool
+   */
+  public static function set_from_name( $name )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'from_name', $name );
   }
 
   /**
@@ -717,8 +793,20 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_FROM_EMAIL' ) ) {
       return SENDGRID_FROM_EMAIL;
     } else {
-      return get_option( 'sendgrid_from_email' );
+      return Sendgrid_Tools::get_sendgrid_option( 'from_email' );
     }
+  }
+
+  /**
+   * Sets from email in the database
+   *
+   * @param   type  string  $email
+   *
+   * @return  bool
+   */
+  public static function set_from_email( $email )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'from_email', $email );
   }
 
   /**
@@ -731,8 +819,20 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_REPLY_TO' ) ) {
       return SENDGRID_REPLY_TO;
     } else {
-      return get_option( 'sendgrid_reply_to' );
+      return Sendgrid_Tools::get_sendgrid_option( 'reply_to' );
     }
+  }
+
+  /**
+   * Sets reply to email in the database
+   *
+   * @param   type  string  $email
+   *
+   * @return  bool
+   */
+  public static function set_reply_to( $email )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'reply_to', $email );
   }
 
   /**
@@ -745,8 +845,20 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_CATEGORIES' ) ) {
       return SENDGRID_CATEGORIES;
     } else {
-      return get_option( 'sendgrid_categories' );
+      return Sendgrid_Tools::get_sendgrid_option( 'categories' );
     }
+  }
+
+  /**
+   * Sets categories in the database
+   *
+   * @param   type  string  $categories
+   *
+   * @return  bool
+   */
+  public static function set_categories( $categories )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'categories', $categories );
   }
 
   /**
@@ -759,8 +871,20 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_STATS_CATEGORIES' ) ) {
       return SENDGRID_STATS_CATEGORIES;
     } else {
-      return get_option( 'sendgrid_stats_categories' );
+      return Sendgrid_Tools::get_sendgrid_option( 'stats_categories' );
     }
+  }
+
+  /**
+   * Sets stats categories in the database
+   *
+   * @param   type  string  $categories
+   *
+   * @return  bool
+   */
+  public static function set_stats_categories( $categories )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'stats_categories', $categories );
   }
 
   /**
@@ -787,8 +911,20 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_TEMPLATE' ) ) {
       return SENDGRID_TEMPLATE;
     } else {
-      return get_option( 'sendgrid_template' );
+      return Sendgrid_Tools::get_sendgrid_option( 'template' );
     }
+  }
+
+  /**
+   * Sets the template in the database
+   *
+   * @param   type  string  $template
+   *
+   * @return  bool
+   */
+  public static function set_template( $template )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'template', $template );
   }
 
   /**
@@ -801,8 +937,333 @@ class Sendgrid_Tools
     if ( defined( 'SENDGRID_CONTENT_TYPE' ) ) {
       return SENDGRID_CONTENT_TYPE;
     } else {
-      return get_option('sendgrid_content_type');
+      return Sendgrid_Tools::get_sendgrid_option( 'content_type' );
     }
+  }
+
+  /**
+   * Sets the unsubscribe group in the database
+   *
+   * @param   type  string  $unsubscribe_group
+   *
+   * @return  bool
+   */
+  public static function set_unsubscribe_group( $unsubscribe_group )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'unsubscribe_group', $unsubscribe_group );
+  }
+
+  /**
+   * Return unsubscribe group from the database or global variable
+   *
+   * @return  mixed  unsubscribe group string, false if the value is not found
+   */
+  public static function get_unsubscribe_group()
+  {
+    if ( defined( 'SENDGRID_UNSUBSCRIBE_GROUP' ) ) {
+      return SENDGRID_UNSUBSCRIBE_GROUP;
+    } else {
+      return Sendgrid_Tools::get_sendgrid_option( 'unsubscribe_group' );
+    }
+  }
+
+  /**
+   * Set asm_permission value in db
+   *
+   * @param   type  string  $permission
+   *
+   * @return  bool
+   */
+  public static function set_asm_permission( $permission )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'asm_permission', $permission );
+  }
+
+  /**
+   * Get asm_permission value from db
+   *
+   * @return  mixed  asm_permission value
+   */
+  public static function get_asm_permission()
+  {
+    return Sendgrid_Tools::get_sendgrid_option( 'asm_permission' );
+  }
+
+  /**
+   * Returns the unsubscribe groups from SendGrid
+   *
+   * @return  mixed   an array of groups if the request is successful, false otherwise.
+   */
+  public static function get_all_unsubscribe_groups()
+  {
+    $url = 'v3/asm/groups';
+
+    $parameters['auth_method']    = Sendgrid_Tools::get_auth_method();
+    $parameters['api_username']   = Sendgrid_Tools::get_username();
+    $parameters['api_password']   = Sendgrid_Tools::get_password();
+    $parameters['apikey']         = Sendgrid_Tools::get_api_key();
+
+    if ( ( 'apikey' == $parameters['auth_method'] ) and ( 'true' != self::get_asm_permission() ) ) {
+      return false;  
+    }
+
+    $response = Sendgrid_Tools::do_request( $url, $parameters );
+
+    if ( ! $response ) {
+      return false;
+    }
+
+    $response = json_decode( $response, true );
+    if ( isset( $response['error'] ) or ( isset( $response['errors'] ) and isset( $response['errors'][0]['message'] ) ) ) {
+      return false;
+    }
+
+    return $response;
+  }
+
+  /**
+   * Sets the content-type in the database
+   *
+   * @param   type  string  $content_type
+   *
+   * @return  bool
+   */
+  public static function set_content_type( $content_type )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'content_type', $content_type );
+  }
+
+  /**
+   * Sets email label in the database
+   *
+   * @param   type  string  $email_label
+   *
+   * @return  bool
+   */
+  public static function set_mc_email_label( $email_label )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_email_label', $email_label );
+  }
+
+  /**
+   * Return email label from the database or global variable
+   *
+   * @return  mixed   email, false if the value is not found
+   */
+  public static function get_mc_email_label()
+  {
+    if ( defined( 'SENDGRID_MC_EMAIL_LABEL' ) ) {
+      return SENDGRID_MC_EMAIL_LABEL;
+    } else {
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_email_label' );
+    }
+  }
+
+  /**
+   * Sets first name label in the database
+   *
+   * @param   type  string  $first_name_label
+   *
+   * @return  bool
+   */
+  public static function set_mc_first_name_label( $first_name_label )
+  {
+      return update_option( 'mc_first_name_label', $first_name_label );
+  }
+
+  /**
+   * Return first name label from the database or global variable
+   *
+   * @return  mixed   label, false if the value is not found
+   */
+  public static function get_mc_first_name_label()
+  {
+    if ( defined( 'SENDGRID_MC_FIRST_NAME_LABEL' ) ) {
+      return SENDGRID_MC_FIRST_NAME_LABEL;
+    } else {
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_first_name_label' );
+    }
+  }
+
+  /**
+   * Sets last name label in the database
+   *
+   * @param   type  string  $last_name_label
+   *
+   * @return  bool
+   */
+  public static function set_mc_last_name_label( $last_name_label )
+  {
+      return Sendgrid_Tools::update_sendgrid_option( 'mc_last_name_label', $last_name_label );
+  }
+
+  /**
+   * Return last name label from the database or global variable
+   *
+   * @return  mixed   label, false if the value is not found
+   */
+  public static function get_mc_last_name_label()
+  {
+    if ( defined( 'SENDGRID_MC_LAST_NAME_LABEL' ) ) {
+      return SENDGRID_MC_LAST_NAME_LABEL;
+    } else {
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_last_name_label' );
+    }
+  }
+
+  /**
+   * Sets subscribe label in the database
+   *
+   * @param   type  string  $subscribe_label
+   *
+   * @return  bool
+   */
+  public static function set_mc_subscribe_label( $subscribe_label )
+  {
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_subscribe_label', $subscribe_label );
+  }
+
+  /**
+   * Return subscribe label from the database or global variable
+   *
+   * @return  mixed   label, false if the value is not found
+   */
+  public static function get_mc_subscribe_label()
+  {
+    if ( defined( 'SENDGRID_MC_SUBSCRIBE_LABEL' ) ) {
+      return SENDGRID_MC_SUBSCRIBE_LABEL;
+    } else {
+      return Sendgrid_Tools::get_sendgrid_option( 'mc_subscribe_label' );
+    }
+  }
+
+  /**
+   * Sets input padding in the database
+   *
+   * @param   type  string  $position
+   * @param   type  int     $value
+   *
+   * @return  bool
+   */
+  public static function set_mc_input_padding( $position, $value = 0 )
+  {
+    if ( "" == $value ) {
+      $value = 0;
+    }
+    $values = json_decode( self::get_mc_input_padding(), true ) ;
+    if ( !isset( $values ) or !is_array($values) ) {
+      $values = array(
+        'top'     => 10,
+        'right'   => 0,
+        'bottom'  => 0,
+        'left'    => 0
+      );
+    }
+
+    // set the new value
+    $values[$position] = $value;
+
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_input_padding', json_encode( $values ) );
+  }
+
+  /**
+   * Return input padding by from the database
+   *
+   * @return  mixed   json with the padding value, false if the value is not found
+   */
+  public static function get_mc_input_padding()
+  {
+    return Sendgrid_Tools::get_sendgrid_option( 'mc_input_padding' );
+  }
+
+  /**
+   * Return input padding by position from the database
+   *
+   * @param   string    $position       position   
+   * @return  integer                   padding value
+   */
+  public static function get_mc_input_padding_by_position( $position )
+  {
+    $padding = Sendgrid_Tools::get_sendgrid_option( 'mc_input_padding' );
+
+    if ( false == $padding ) {
+      if ( $position == "top" ) {
+        return 10;
+      }
+
+      return 0;
+    }
+    $padding = json_decode( $padding, true );
+    if ( !isset( $padding[$position] ) ) {
+      return 0;
+    }
+
+    return $padding[$position];
+  }
+
+  /**
+   * Sets button padding in the database
+   *
+   * @param   type  string  $position
+   * @param   type  int     $value
+   *
+   * @return  bool
+   */
+  public static function set_mc_button_padding( $position, $value = 0 )
+  {
+    if ( "" == $value ) {
+      $value = 0;
+    }
+    $values = json_decode( self::get_mc_button_padding(), true );
+    if ( !isset( $values ) or !is_array($values) ) {
+      $values = array(
+        'top'     => 10,
+        'right'   => 0,
+        'bottom'  => 0,
+        'left'    => 0
+      );
+    }
+
+    // set the new value
+    $values[$position] = $value;
+
+    return Sendgrid_Tools::update_sendgrid_option( 'mc_button_padding', json_encode( $values ) );
+  }
+
+  /**
+   * Return button padding by from the database
+   *
+   * @return  mixed   json with the padding value, false if the value is not found
+   */
+  public static function get_mc_button_padding()
+  {
+    return Sendgrid_Tools::get_sendgrid_option( 'mc_button_padding' );
+  }
+
+  /**
+   * Return button padding by position from the database
+   *
+   * @param   string    $position   position   
+   * @return  integer               padding value
+   */
+  public static function get_mc_button_padding_by_position( $position )
+  {
+    $padding = Sendgrid_Tools::get_sendgrid_option( 'mc_button_padding' );
+
+    if ( false == $padding ) {
+      if ( $position == "top" )
+      {
+        return 10;
+      }
+
+      return 0;
+    }
+    $padding = json_decode( $padding, true );
+    if ( !isset( $padding[$position] ) ) {
+      return 0;
+    }
+
+    return $padding[$position];
   }
 
   /**
@@ -842,15 +1303,35 @@ class Sendgrid_Tools
   /**
    * Check apikey stats permissions
    *
-   * @param   string  $apikey   sendgrid apikey
+   * @param   string  $apikey        sendgrid apikey
+   * @param   bool    $clear_cache   true to not use cache
    *
    * @return  bool
    */
-  public static function check_api_key_stats( $apikey )
+  public static function check_api_key_stats( $apikey, $clear_cache = false )
   {
+    // clear cache
+    if ( $clear_cache ) {
+      self::set_transient_sendgrid( self::CHECK_API_KEY_STATS_CACHE_KEY, null );
+    }
+
+    // get info from cache
+    $valid_apikey_stats = self::get_transient_sendgrid( self::CHECK_API_KEY_STATS_CACHE_KEY );
+
+    if ( self::VALID_CREDENTIALS_STATUS == $valid_apikey_stats ) {
+      return true;
+    }
+
     $required_scopes = array( 'stats.read', 'categories.stats.read', 'categories.stats.sums.read' );
 
-    return Sendgrid_Tools::check_api_key_scopes( $apikey, $required_scopes );
+    $check_scopes = Sendgrid_Tools::check_api_key_scopes( $apikey, $required_scopes );
+
+    // set cache
+    if ( $check_scopes ) {
+      self::set_transient_sendgrid( self::CHECK_API_KEY_STATS_CACHE_KEY, self::VALID_CREDENTIALS_STATUS, 2 * 60 * 60 );
+    }
+
+    return $check_scopes;
   }
 
   /**
@@ -874,7 +1355,11 @@ class Sendgrid_Tools
    */
   public static function is_valid_email( $email )
   {
-    return filter_var( $email, FILTER_VALIDATE_EMAIL );
+    if ( filter_var( $email, FILTER_VALIDATE_EMAIL ) and ( SendGrid_ThirdParty::is_email( $email ) ) ) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -974,6 +1459,55 @@ class Sendgrid_Tools
   public static function remove_all_tag_urls( $content )
   {
     return preg_replace('/<(https?:\/\/[^>]*)>/im', '$1', $content);
+  }
+
+  /**
+   * Set/update the value of a transient using database.
+   *
+   * @param string $transient  Transient name. Expected to not be SQL-escaped. Must be
+   *                           172 characters or fewer in length.
+   * @param mixed  $value      Transient value. Must be serializable if non-scalar.
+   *                           Expected to not be SQL-escaped.
+   * @param int    $expiration Optional. Time until expiration in seconds. Default 0 (no expiration).
+   * @return bool False if value was not set and true if value was set.
+   */
+  public static function set_transient_sendgrid( $transient, $value, $expiration = 0 ) {
+    $old_cache_value = wp_using_ext_object_cache();
+    wp_using_ext_object_cache( false );
+
+    if ( ! is_multisite() || ( is_multisite() and ! is_main_site() and get_option( 'sendgrid_can_manage_subsite' ) ) ) {
+      $set_transient_result = set_transient( $transient, $value, $expiration );
+    } else {
+      $set_transient_result = set_site_transient( $transient, $value, $expiration );
+    }
+
+    wp_using_ext_object_cache( $old_cache_value );
+
+    return $set_transient_result;
+  }
+
+  /**
+   * Get the value of a transient from database.
+   *
+   * If the transient does not exist, does not have a value, or has expired,
+   * then the return value will be false.
+   *
+   * @param string $transient Transient name. Expected to not be SQL-escaped.
+   * @return mixed Value of transient.
+   */
+  public static function get_transient_sendgrid( $transient ) {
+    $old_cache_value = wp_using_ext_object_cache();
+    wp_using_ext_object_cache( false );
+    
+    if ( ! is_multisite() || ( is_multisite() and ! is_main_site() and get_option( 'sendgrid_can_manage_subsite' ) ) ) {
+      $value = get_transient( $transient );
+    } else {
+      $value = get_site_transient( $transient );
+    }
+
+    wp_using_ext_object_cache( $old_cache_value );
+
+    return $value;
   }
 }
 
