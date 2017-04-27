@@ -3,7 +3,7 @@
         <div class="inner">
           <section>
             <h2>Get in touch</h2>
-            <form method="post" action="<?php echo esc_url( admin_url('admin-post.php') ); ?>">
+            <form method="post" action="">
               <input type="hidden" name="action" value="contact_form">
               <div class="field half first">
                 <input type="text" name="name" id="name" placeholder="Name" />
