@@ -30,7 +30,7 @@
             </ul>
           </section>
           <ul class="copyright">
-            <li>&copy; Nutrition Pump. All rights reserved</li>
+            <li>&copy; <script>document.write(new Date().getFullYear())</script><noscript>2018</noscript> Nutrition Pump LLC. All rights reserved</li>
           </ul>
         </div>
       </footer>
